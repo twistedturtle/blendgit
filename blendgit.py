@@ -50,6 +50,10 @@ bl_info = \
         "category" : "System",
     }
 
+
+hide_git_dir = True
+OS = "linux"  # linux, win, mac
+
 def format_compact_datetime(timestamp) :
     # returns as brief as possible a human-readable display of the specified date/time.
     then_items = time.localtime(timestamp)
@@ -72,9 +76,19 @@ def doc_saved() :
     return len(bpy.data.filepath) != 0
 #end doc_saved
 
+
 def get_repo_name() :
     # name to use for the repo associated with this doc
-    return bpy.data.filepath + ".git"
+    if hide_git_dir:
+        if OS == "linux" or OS == "mac":
+            path_split = bpy.data.filepath.split("/")
+            return "/".join(path_split[:-1]) + "/." + path_split[-1] + ".git"
+        else:
+            # Windows, Can't set it as hidden until it's created
+            # so do it after we use git init to create dir when saving
+            return bpy.data.filepath + ".git"
+    else:
+        return bpy.data.filepath + ".git"
 #end get_repo_name
 
 def get_workdir_name() :
@@ -265,6 +279,17 @@ class SaveVersion(bpy.types.Operator) :
             if not os.path.isdir(repo_name) :
                 do_git(("init",), saving = True)
                 do_git(("config", "--unset", "core.worktree"), saving = True) # can get set for some reason
+
+                if OS == "win" and hide_git_dir:
+                    env = dict(os.environ)
+                    subprocess.check_output \
+                      (
+                        args = ("attrib", "+h", repo_name),
+                        stdin = subprocess.DEVNULL,
+                        shell = False,
+                        cwd = os.path.dirname(repo_name),
+                        env = env
+                      )
             #end if
             bpy.ops.wm.save_as_mainfile("EXEC_DEFAULT", filepath = bpy.data.filepath)
             parent_dir = os.path.split(bpy.data.filepath)[0]
